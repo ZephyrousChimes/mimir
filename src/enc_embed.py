@@ -15,6 +15,7 @@ def cos(a, b):
 def score_tables(question, schema):
     model = get_model()
     table_texts = {t: t + " " + " ".join(cols) for t, cols in schema.items()}
+    
     tables = list(table_texts.keys())
     texts = [table_texts[t] for t in tables]
 
