@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+data/arc.db
+data/spider/
+data/wikisql/
+data/uploads/

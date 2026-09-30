@@ -1,0 +1,9 @@
+torch
+transformers
+sentencepiece
+pandas
+pyarrow
+fastapi
+uvicorn
+python-multipart
+sentence-transformers

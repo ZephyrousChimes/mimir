@@ -1,0 +1,27 @@
+[
+  {"id": "A1", "category": "single_table_no_filter", "question": "List all employees.", "gold_sql": "SELECT * FROM employee"},
+  {"id": "A2", "category": "single_table_no_filter", "question": "Show all departments.", "gold_sql": "SELECT * FROM department"},
+  {"id": "A3", "category": "single_table_no_filter", "question": "List all projects.", "gold_sql": "SELECT * FROM project"},
+
+  {"id": "B1", "category": "single_table_equality_filter", "question": "What is Alice's salary?", "gold_sql": "SELECT salary FROM employee WHERE name = 'Alice'"},
+  {"id": "B2", "category": "single_table_equality_filter", "question": "What is Bob's salary?", "gold_sql": "SELECT salary FROM employee WHERE name = 'Bob'"},
+  {"id": "B3", "category": "single_table_equality_filter", "question": "What is the budget of the Sales department?", "gold_sql": "SELECT budget FROM department WHERE name = 'Sales'"},
+
+  {"id": "C1", "category": "single_table_comparison_filter", "question": "Which employees have a salary above 70000?", "gold_sql": "SELECT name FROM employee WHERE salary > 70000"},
+  {"id": "C2", "category": "single_table_comparison_filter", "question": "Which employees have a salary below 60000?", "gold_sql": "SELECT name FROM employee WHERE salary < 60000"},
+
+  {"id": "D1", "category": "value_collision_trap", "question": "What is the budget of the What department?", "gold_sql": "SELECT budget FROM department WHERE name = 'What'"},
+  {"id": "D2", "category": "value_collision_trap", "question": "What is the id of the What department?", "gold_sql": "SELECT id FROM department WHERE name = 'What'"},
+
+  {"id": "E1", "category": "named_join", "question": "Which employees work in the Engineering department?", "gold_sql": "SELECT employee.name FROM employee JOIN department ON employee.dept_id = department.id WHERE department.name = 'Engineering'"},
+  {"id": "E2", "category": "named_join", "question": "Which employees work in the Sales department?", "gold_sql": "SELECT employee.name FROM employee JOIN department ON employee.dept_id = department.id WHERE department.name = 'Sales'"},
+  {"id": "E3", "category": "named_join_plus_collision", "question": "Which employees work in the What department?", "gold_sql": "SELECT employee.name FROM employee JOIN department ON employee.dept_id = department.id WHERE department.name = 'What'"},
+
+  {"id": "F1", "category": "unnamed_bridge_join", "question": "Which projects has Alice contributed to?", "gold_sql": "SELECT project.name FROM project JOIN assignment ON project.id = assignment.project_id JOIN employee ON employee.id = assignment.emp_id WHERE employee.name = 'Alice'"},
+  {"id": "F2", "category": "unnamed_bridge_join", "question": "Which employees are involved in the Vendor Audit project?", "gold_sql": "SELECT employee.name FROM employee JOIN assignment ON employee.id = assignment.emp_id JOIN project ON assignment.project_id = project.id WHERE project.name = 'Vendor Audit'"},
+  {"id": "F3", "category": "unnamed_bridge_join", "question": "Which projects is Carol working on?", "gold_sql": "SELECT project.name FROM project JOIN assignment ON project.id = assignment.project_id JOIN employee ON employee.id = assignment.emp_id WHERE employee.name = 'Carol'"},
+  {"id": "F4", "category": "unnamed_bridge_join", "question": "Which employees are on the Q3 Roadmap project?", "gold_sql": "SELECT employee.name FROM employee JOIN assignment ON employee.id = assignment.emp_id JOIN project ON assignment.project_id = project.id WHERE project.name = 'Q3 Roadmap'"},
+
+  {"id": "G1", "category": "out_of_grammar_stretch", "question": "Which department has the highest total salary?", "gold_sql": "SELECT department.name FROM employee JOIN department ON employee.dept_id = department.id GROUP BY department.name ORDER BY SUM(employee.salary) DESC LIMIT 1"},
+  {"id": "G2", "category": "out_of_grammar_stretch", "question": "How many employees are in each department?", "gold_sql": "SELECT department.name, COUNT(*) FROM employee JOIN department ON employee.dept_id = department.id GROUP BY department.name"}
+]
