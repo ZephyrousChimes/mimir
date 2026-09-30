@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nl2sql-arc</title>
+<style>
+  :root {
+    --bg: #0e0f12; --panel: #16181d; --border: #262932; --text: #e7e9ee;
+    --muted: #8b90a0; --accent: #6ea8fe; --good: #4fd1a5; --bad: #f87171;
+    --mono: "SF Mono", Consolas, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+
+  .drop {
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 24px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s;
+  }
+  .drop:hover, .drop.drag { border-color: var(--accent); color: var(--text); }
+  .drop input { display: none; }
+
+  .schema { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .table-chip {
+    background: #1d2028; border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; font-size: 12.5px; font-family: var(--mono);
+  }
+  .table-chip b { color: var(--accent); font-family: inherit; }
+  .table-chip .cols { color: var(--muted); }
+
+  .ask-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .ask-row input[type=text] { min-width: 200px; }
+  input[type=text] {
+    flex: 1; background: #1d2028; border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 12px 14px; font-size: 14.5px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--accent); }
+  button {
+    background: var(--accent); color: #0e0f12; border: none; border-radius: 8px;
+    padding: 0 20px; font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .sql-box {
+    font-family: var(--mono); font-size: 13px; background: #0b0c0f;
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+    margin-top: 16px; white-space: pre-wrap; word-break: break-word; color: #c9d1e0;
+  }
+  .status { font-size: 12.5px; margin-top: 10px; }
+  .status.ok { color: var(--good); }
+  .status.err { color: var(--bad); }
+
+  table.results { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13.5px; }
+  table.results th, table.results td {
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  table.results th { color: var(--muted); font-weight: 600; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .03em; }
+  table.results tr:last-child td { border-bottom: none; }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 4px 0; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+
+  select {
+    background: #1d2028; border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 0 12px; font-size: 14px; height: 44px;
+  }
+
+  .grounding {
+    font-family: var(--mono); font-size: 12.5px; background: #0b0c0f;
+    border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    margin-top: 16px; color: #a9b8cf;
+  }
+  .grounding .g-row { margin-bottom: 4px; }
+  .grounding .g-key { color: var(--muted); }
+  .grounding .g-row:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>nl2sql-arc</h1>
+  <div class="sub">Upload a SQLite database, ask it a question in plain English.</div>
+
+  <div class="panel" id="uploadPanel">
+    <h2>Database</h2>
+    <label class="drop" id="drop">
+      <div id="dropText">Drop a .db / .sqlite file here, or click to choose</div>
+      <input type="file" id="file" accept=".db,.sqlite,.sqlite3">
+    </label>
+    <div class="schema" id="schema"></div>
+  </div>
+
+  <div class="panel" id="askPanel" style="display:none">
+    <h2>Ask</h2>
+    <div class="ask-row">
+      <input type="text" id="question" placeholder="e.g. Which employees work in the Engineering department?">
+      <select id="encoderSelect">
+        <option value="rule">Rule-based</option>
+        <option value="ngram">N-gram</option>
+        <option value="embed">Embedding</option>
+      </select>
+      <button id="ask">Ask</button>
+    </div>
+    <div class="hint">encoder.ground() (whichever's selected above) → decoder.build(). No LLM call.</div>
+    <div id="result"></div>
+  </div>
+</div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const schemaEl = document.getElementById('schema');
+const askPanel = document.getElementById('askPanel');
+const resultEl = document.getElementById('result');
+const questionEl = document.getElementById('question');
+const askBtn = document.getElementById('ask');
+const encoderSelect = document.getElementById('encoderSelect');
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('drag');
+  if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  document.getElementById('dropText').textContent = `Uploading ${file.name}...`;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'upload failed');
+    document.getElementById('dropText').textContent = `Loaded ${file.name} — drop another to replace`;
+    renderSchema(data.tables, data.foreign_keys);
+    askPanel.style.display = 'block';
+    resultEl.innerHTML = '';
+    questionEl.focus();
+  } catch (err) {
+    document.getElementById('dropText').textContent = `Error: ${err.message}`;
+  }
+}
+
+async function checkExistingDb() {
+  try {
+    const res = await fetch('/schema');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('dropText').textContent = 'Database loaded — drop another to replace';
+    renderSchema(data.tables, data.foreign_keys);
+    askPanel.style.display = 'block';
+  } catch (err) { /* no db yet, leave the upload prompt as-is */ }
+}
+checkExistingDb();
+
+function renderSchema(tables, fks) {
+  const fkByCol = {};
+  (fks || []).forEach(([ft, fc, tt, tc]) => { fkByCol[`${ft}.${fc}`] = `${tt}.${tc}`; });
+  schemaEl.innerHTML = Object.entries(tables).map(([t, cols]) => `
+    <div class="table-chip">
+      <b>${t}</b><br>
+      <span class="cols">${cols.map(c => {
+        const fk = fkByCol[`${t}.${c}`];
+        return fk ? `${c} → ${fk}` : c;
+      }).join(', ')}</span>
+    </div>`).join('');
+}
+
+async function ask() {
+  const question = questionEl.value.trim();
+  if (!question) return;
+  askBtn.disabled = true;
+  resultEl.innerHTML = '<div class="empty">Thinking…</div>';
+  try {
+    const res = await fetch('/query', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, encoder: encoderSelect.value })
+    });
+    const data = await res.json();
+    renderResult(data);
+  } catch (err) {
+    resultEl.innerHTML = `<div class="status err">${err.message}</div>`;
+  } finally {
+    askBtn.disabled = false;
+  }
+}
+
+function renderResult(data) {
+  let html = '';
+  if (data.grounding) {
+    const g = data.grounding;
+    html += '<div class="grounding">' +
+      `<div class="g-row"><span class="g-key">tables</span>     ${JSON.stringify(g.tables)}</div>` +
+      `<div class="g-row"><span class="g-key">target</span>     ${JSON.stringify(g.target)}</div>` +
+      `<div class="g-row"><span class="g-key">filters</span>    ${JSON.stringify(g.filters)}</div>` +
+      `<div class="g-row"><span class="g-key">aggregation</span> ${JSON.stringify(g.aggregation)}</div>` +
+      '</div>';
+  }
+  if (data.sql) {
+    html += `<div class="sql-box">${escapeHtml(data.sql)}</div>`;
+  }
+  if (data.error) {
+    html += `<div class="status err">${escapeHtml(data.error)}</div>`;
+  } else if (data.sql) {
+    html += `<div class="status ok">${data.rows.length} row${data.rows.length === 1 ? '' : 's'}</div>`;
+    if (data.rows.length) {
+      html += '<table class="results"><thead><tr>' +
+        data.columns.map(c => `<th>${escapeHtml(c)}</th>`).join('') +
+        '</tr></thead><tbody>' +
+        data.rows.map(r => '<tr>' + r.map(v => `<td>${v === null ? '' : escapeHtml(String(v))}</td>`).join('') + '</tr>').join('') +
+        '</tbody></table>';
+    }
+  }
+  resultEl.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+askBtn.addEventListener('click', ask);
+questionEl.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+</script>
+</body>
+</html>
